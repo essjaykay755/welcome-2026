@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>New Year's Eve Fireworks 2026</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #020205; /* Deep dark blue/black */
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        /* Canvas covers the entire screen */
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+
+        /* UI Overlay for the Finale Button */
+        #ui-layer {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            width: 100%;
+            pointer-events: none; /* Let clicks pass through to canvas generally */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+        }
+
+        #finale-btn {
+            pointer-events: auto;
+            /* Animated Silver Chrome Gradient */
+            background: linear-gradient(
+                110deg,
+                #777 0%,
+                #d4d4d4 25%,
+                #fff 50%,
+                #d4d4d4 75%,
+                #777 100%
+            );
+            background-size: 200% auto;
+            animation: chromeShine 3s linear infinite;
+
+            border: 2px solid rgba(255, 255, 255, 0.9);
+            color: #222; /* Dark text for contrast on silver */
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            font-weight: 900;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-radius: 50px;
+            cursor: pointer;
+
+            /* Metallic glow and depth shadows */
+            box-shadow: 
+                0 0 15px rgba(255, 255, 255, 0.4),
+                0 0 30px rgba(255, 0, 204, 0.3),
+                inset 0 1px 0 rgba(255,255,255,0.8);
+            
+            text-shadow: 0 1px 0 rgba(255,255,255,0.5);
+            
+            transition: all 0.3s ease;
+            outline: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        @keyframes chromeShine {
+            to {
+                background-position: -200% center;
+            }
+        }
+
+        #finale-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 
+                0 0 25px rgba(255, 255, 255, 0.8),
+                0 0 50px rgba(255, 0, 204, 0.6);
+        }
+
+        #finale-btn:active {
+            transform: scale(0.95);
+        }
+
+        #finale-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            filter: grayscale(100%);
+        }
+
+        .footer-credit {
+            margin-top: 15px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.8rem;
+            font-weight: 300;
+            letter-spacing: 1px;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+            font-family: 'Segoe UI', sans-serif;
+        }
+
+        /* Instructions overlay */
+        #instructions {
+            position: absolute;
+            top: 20px;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            color: rgba(255, 255, 255, 0.5);
+            pointer-events: none;
+            font-size: 0.9rem;
+            text-shadow: 0 1px 2px black;
+        }
+
+        /* Fallback for no-canvas */
+        #no-canvas {
+            display: none;
+            color: white;
+            text-align: center;
+            padding-top: 100px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="no-canvas">Your browser does not support HTML5 Canvas. Please update to a modern browser.</div>
+    
+    <div id="instructions">Click or Drag to Launch • Press Button for Finale</div>
+    
+    <div id="ui-layer">
+        <button id="finale-btn">Grand Finale</button>
+        <div class="footer-credit">Made by Subhojit Karmakar</div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+<script>
+/**
+ * FIREWORKS 2026
+ * A realistic particle physics simulation.
+ */
+
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const finaleBtn = document.getElementById('finale-btn');
+
+// --- Configuration & Constants ---
+let width, height;
+let rockets = [];
+let particles = [];
+let textPoints = []; // Stores coordinates for "WELCOME 2026"
+
+// Interaction State
+let isMouseDown = false;
+let mouseX = 0;
+let mouseY = 0;
+let isFinaleActive = false;
+let lastLaunchTime = 0;
+
+// Physics Configuration
+const GRAVITY = 0.08; 
+// Drag Equation Constants: Fd = -0.5 * Cd * A * rho * v^2
+const DRAG_COEFFICIENT = 0.003; 
+
+// --- Setup & Resize ---
+function resize() {
+    width = window.innerWidth;
+    height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Check for Canvas Support
+if (!ctx) {
+    document.getElementById('no-canvas').style.display = 'block';
+    document.getElementById('ui-layer').style.display = 'none';
+}
+
+// --- Classes ---
+
+class Rocket {
+    constructor(targetX, targetY, isFinale = false) {
+        this.x = width / 2;
+        if (!isFinale && !isMouseDown) {
+            this.x = Math.random() * width;
+        } else if (isMouseDown) {
+             this.x = Math.random() * (width * 0.2) + width * 0.4;
+        }
+        
+        this.y = height;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        this.isFinale = isFinale;
+        
+        // Calculate velocity
+        const dx = this.targetX - this.x;
+        const dy = this.targetY - this.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        // Speed
+        const speed = Math.min(distance * 0.035 + 8, 18); 
+        const angle = Math.atan2(dy, dx);
+        
+        this.vx = Math.cos(angle) * speed;
+        this.vy = Math.sin(angle) * speed;
+        
+        this.hue = Math.floor(Math.random() * 360);
+        this.trail = [];
+        this.exploded = false;
+    }
+
+    update() {
+        this.x += this.vx;
+        this.y += this.vy;
+        this.vy += GRAVITY; 
+
+        this.trail.push({x: this.x, y: this.y});
+        if (this.trail.length > 5) this.trail.shift();
+
+        const distanceToTarget = Math.hypot(this.x - this.targetX, this.y - this.targetY);
+        
+        if (distanceToTarget < 20 || (this.vy > 0 && this.y < this.targetY + 100)) {
+            this.explode();
+        }
+    }
+
+    draw() {
+        ctx.beginPath();
+        if (this.trail.length > 0) {
+            ctx.moveTo(this.trail[0].x, this.trail[0].y);
+            for(let i=1; i < this.trail.length; i++){
+                ctx.lineTo(this.trail[i].x, this.trail[i].y);
+            }
+        }
+        ctx.strokeStyle = `hsl(${this.hue}, 100%, 50%)`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+    }
+
+    explode() {
+        this.exploded = true;
+        const particleCount = this.isFinale ? 80 : Math.floor(Math.random() * 100) + 50;
+        
+        for (let i = 0; i < particleCount; i++) {
+            particles.push(new Particle(this.x, this.y, this.hue));
+        }
+    }
+}
+
+class Particle {
+    constructor(x, y, hue, isTextParticle = false, targetX = 0, targetY = 0) {
+        this.x = x;
+        this.y = y;
+        // FIX: Track previous position explicitly to avoid visibility bug when stationary
+        this.prevX = x;
+        this.prevY = y;
+        
+        this.hue = hue + (Math.random() * 40 - 20); 
+        this.alpha = 1;
+        this.decay = Math.random() * 0.015 + 0.005;
+        this.brightness = Math.random() * 20 + 50; 
+        
+        this.isTextParticle = isTextParticle;
+        this.targetX = targetX;
+        this.targetY = targetY;
+        
+        if (!isTextParticle) {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 6 + 2; 
+            this.vx = Math.cos(angle) * speed;
+            this.vy = Math.sin(angle) * speed;
+        } else {
+            const angle = Math.random() * Math.PI * 2;
+            const speed = Math.random() * 15 + 5;
+            this.vx = Math.cos(angle) * speed;
+            this.vy = Math.sin(angle) * speed;
+            this.decay = 0; 
+            this.lifeTime = 0;
+        }
+    }
+
+    update() {
+        // Update previous position before moving
+        this.prevX = this.x;
+        this.prevY = this.y;
+
+        if (this.isTextParticle) {
+            this.updateTextPhysics();
+        } else {
+            this.updateNormalPhysics();
+        }
+    }
+
+    updateNormalPhysics() {
+        this.vy += GRAVITY;
+
+        const vSq = (this.vx * this.vx) + (this.vy * this.vy);
+        const speed = Math.sqrt(vSq);
+        
+        if (speed > 0) {
+            const dragForce = DRAG_COEFFICIENT * vSq; 
+            const dragX = (this.vx / speed) * dragForce;
+            const dragY = (this.vy / speed) * dragForce;
+            
+            this.vx -= dragX;
+            this.vy -= dragY;
+        }
+
+        this.x += this.vx;
+        this.y += this.vy;
+        this.alpha -= this.decay;
+    }
+
+    updateTextPhysics() {
+        this.lifeTime++;
+
+        // Phase 1: Explosion (Expand)
+        if (this.lifeTime < 40) {
+             this.x += this.vx;
+             this.y += this.vy;
+             this.vx *= 0.9; 
+             this.vy *= 0.9;
+        } 
+        // Phase 2: Assemble (Steering behavior) - Hold for ~5 seconds (300 frames)
+        else if (this.lifeTime < 300) {
+            // Simple ease-out interpolation to target
+            const dx = this.targetX - this.x;
+            const dy = this.targetY - this.y;
+            
+            this.x += dx * 0.1;
+            this.y += dy * 0.1;
+            
+            // Gentle shimmering alpha, never going transparent
+            this.alpha = 0.85 + Math.sin(Date.now() * 0.008) * 0.15;
+            
+            // Reset velocity so they don't carry momentum into the fall
+            this.vx = 0;
+            this.vy = 0;
+        }
+        // Phase 3: Dissolve Realistically (Gravity + Drift)
+        else {
+            this.vy += GRAVITY * 0.2; // Gentle gravity start
+            this.vx += (Math.random() - 0.5) * 0.05; // Random drift
+            
+            this.x += this.vx;
+            this.y += this.vy;
+            
+            this.alpha -= 0.005; // Fade out
+        }
+    }
+
+    draw() {
+        ctx.beginPath();
+        
+        ctx.moveTo(this.prevX, this.prevY);
+        ctx.lineTo(this.x, this.y);
+        
+        // FIX: If particle is stationary (during hold phase), draw a dot
+        if (Math.abs(this.x - this.prevX) < 0.1 && Math.abs(this.y - this.prevY) < 0.1) {
+            ctx.lineTo(this.x + 1.5, this.y + 1.5);
+        }
+        
+        ctx.strokeStyle = `hsla(${this.hue}, 100%, ${this.brightness}%, ${this.alpha})`;
+        ctx.lineWidth = this.isTextParticle ? 2.5 : 2;
+        ctx.stroke();
+    }
+}
+
+// --- Text Generation Logic ---
+
+function generateTextPoints(text) {
+    const offscreen = document.createElement('canvas');
+    const oCtx = offscreen.getContext('2d');
+    
+    offscreen.width = width;
+    offscreen.height = 400; // Increased height to prevent cutoff
+    
+    // Responsive Font Size
+    const fontSize = Math.min(width / 8, 110); 
+    oCtx.font = `900 ${fontSize}px sans-serif`; // Extra bold
+    oCtx.fillStyle = 'white';
+    oCtx.textAlign = 'center';
+    oCtx.textBaseline = 'middle';
+    
+    oCtx.fillText(text, width / 2, 200);
+    
+    const imageData = oCtx.getImageData(0, 0, width, 400).data;
+    const points = [];
+    const step = 4; 
+    
+    for (let y = 0; y < 400; y += step) {
+        for (let x = 0; x < width; x += step) {
+            const index = (y * width + x) * 4;
+            if (imageData[index + 3] > 128) {
+                points.push({
+                    x: x,
+                    y: y + 50 // Position in upper half
+                });
+            }
+        }
+    }
+    return points;
+}
+
+// --- Main Loop ---
+
+function animate() {
+    requestAnimationFrame(animate);
+
+    // Semi-transparent clearing for trail effect
+    ctx.fillStyle = 'rgba(0, 2, 10, 0.2)';
+    ctx.fillRect(0, 0, width, height);
+
+    ctx.globalCompositeOperation = 'lighter';
+
+    // Update Rockets
+    for (let i = rockets.length - 1; i >= 0; i--) {
+        rockets[i].update();
+        rockets[i].draw();
+        if (rockets[i].exploded) {
+            rockets.splice(i, 1);
+        }
+    }
+
+    // Update Particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+        particles[i].update();
+        particles[i].draw();
+        if (particles[i].alpha <= 0) {
+            particles.splice(i, 1);
+        }
+    }
+    
+    ctx.globalCompositeOperation = 'source-over';
+    
+    // Handle Drag Launching
+    if (isMouseDown && !isFinaleActive) {
+        const now = Date.now();
+        if (now - lastLaunchTime > 100) {
+            launchRocket(mouseX, mouseY);
+            lastLaunchTime = now;
+        }
+    }
+}
+
+function launchRocket(x, y, isFinale = false) {
+    rockets.push(new Rocket(x, y, isFinale));
+}
+
+// --- Finale Sequence ---
+
+async function startFinale() {
+    if (isFinaleActive) return;
+    isFinaleActive = true;
+    finaleBtn.disabled = true;
+    finaleBtn.innerText = "Enjoy the Show!";
+    
+    // Lazy load text points
+    textPoints = generateTextPoints("WELCOME 2026");
+    textPoints.sort(() => Math.random() - 0.5);
+
+    const duration = 4000;
+    
+    // Part 1: Rapid Barrage
+    const barrageInterval = setInterval(() => {
+        const x = Math.random() * (width - 100) + 50;
+        const y = Math.random() * (height * 0.4) + 50;
+        launchRocket(x, y, true);
+    }, 200);
+
+    // Stop barrage and start text
+    setTimeout(() => {
+        clearInterval(barrageInterval);
+        triggerTextFormation();
+    }, duration);
+}
+
+function triggerTextFormation() {
+    const centerX = width / 2;
+    const centerY = height / 3;
+    
+    const count = Math.min(textPoints.length, 3000); 
+    
+    for (let i = 0; i < count; i++) {
+        const target = textPoints[Math.floor((i / count) * textPoints.length)];
+        const hue = (target.x / width) * 60 + 180; 
+        
+        particles.push(new Particle(centerX, centerY, hue, true, target.x, target.y));
+    }
+    
+    // Reset state after animation finishes
+    setTimeout(() => {
+        isFinaleActive = false;
+        finaleBtn.disabled = false;
+        finaleBtn.innerText = "Grand Finale";
+    }, 8000); // Wait longer for text to fall
+}
+
+// --- Event Listeners ---
+
+canvas.addEventListener('mousedown', (e) => {
+    if(isFinaleActive) return;
+    isMouseDown = true;
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+    launchRocket(mouseX, mouseY);
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if(isFinaleActive) return;
+    mouseX = e.clientX;
+    mouseY = e.clientY;
+});
+
+canvas.addEventListener('mouseup', () => {
+    isMouseDown = false;
+});
+
+canvas.addEventListener('touchstart', (e) => {
+    if(isFinaleActive) return;
+    e.preventDefault();
+    isMouseDown = true;
+    mouseX = e.touches[0].clientX;
+    mouseY = e.touches[0].clientY;
+    launchRocket(mouseX, mouseY);
+}, {passive: false});
+
+canvas.addEventListener('touchmove', (e) => {
+    if(isFinaleActive) return;
+    e.preventDefault();
+    mouseX = e.touches[0].clientX;
+    mouseY = e.touches[0].clientY;
+}, {passive: false});
+
+canvas.addEventListener('touchend', () => {
+    isMouseDown = false;
+});
+
+finaleBtn.addEventListener('click', startFinale);
+
+animate();
+
+</script>
+</body>
+</html>
