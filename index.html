@@ -167,7 +167,7 @@ let isFinaleActive = false;
 let lastLaunchTime = 0;
 
 // Physics Configuration
-const GRAVITY = 0.08; 
+const GRAVITY = 0.04; // Reduced from 0.08 for a slower, more floaty feel
 // Drag Equation Constants: Fd = -0.5 * Cd * A * rho * v^2
 const DRAG_COEFFICIENT = 0.003; 
 
@@ -208,8 +208,8 @@ class Rocket {
         const dy = this.targetY - this.y;
         const distance = Math.sqrt(dx * dx + dy * dy);
         
-        // Speed
-        const speed = Math.min(distance * 0.035 + 8, 18); 
+        // Speed - Reduced multipliers and base speed for slower launch
+        const speed = Math.min(distance * 0.025 + 6, 12); 
         const angle = Math.atan2(dy, dx);
         
         this.vx = Math.cos(angle) * speed;
@@ -268,7 +268,7 @@ class Particle {
         
         this.hue = hue + (Math.random() * 40 - 20); 
         this.alpha = 1;
-        this.decay = Math.random() * 0.015 + 0.005;
+        this.decay = Math.random() * 0.010 + 0.003; // Slower fade out
         this.brightness = Math.random() * 20 + 50; 
         
         this.isTextParticle = isTextParticle;
@@ -277,12 +277,12 @@ class Particle {
         
         if (!isTextParticle) {
             const angle = Math.random() * Math.PI * 2;
-            const speed = Math.random() * 6 + 2; 
+            const speed = Math.random() * 4 + 1; // Slower explosions
             this.vx = Math.cos(angle) * speed;
             this.vy = Math.sin(angle) * speed;
         } else {
             const angle = Math.random() * Math.PI * 2;
-            const speed = Math.random() * 15 + 5;
+            const speed = Math.random() * 8 + 3; // Slower text particle start
             this.vx = Math.cos(angle) * speed;
             this.vy = Math.sin(angle) * speed;
             this.decay = 0; 
@@ -338,25 +338,29 @@ class Particle {
             const dx = this.targetX - this.x;
             const dy = this.targetY - this.y;
             
-            this.x += dx * 0.1;
-            this.y += dy * 0.1;
+            this.x += dx * 0.05; 
+            this.y += dy * 0.05;
             
-            // Gentle shimmering alpha, never going transparent
+            // Gentle shimmering alpha
             this.alpha = 0.85 + Math.sin(Date.now() * 0.008) * 0.15;
             
-            // Reset velocity so they don't carry momentum into the fall
+            // Reset velocity 
             this.vx = 0;
             this.vy = 0;
         }
-        // Phase 3: Dissolve Realistically (Gravity + Drift)
+        // Phase 3: Dissipate and Fall Realistically
         else {
-            this.vy += GRAVITY * 0.2; // Gentle gravity start
-            this.vx += (Math.random() - 0.5) * 0.05; // Random drift
+            // Apply gentle gravity that accumulates
+            this.vy += GRAVITY * 0.15; 
+            
+            // Add randomness to X velocity to make the text "dissipate" or break apart
+            this.vx += (Math.random() - 0.5) * 0.05;
             
             this.x += this.vx;
             this.y += this.vy;
             
-            this.alpha -= 0.005; // Fade out
+            // Very slow fade out so it travels further down screen
+            this.alpha -= 0.003; 
         }
     }
 
@@ -499,12 +503,12 @@ function triggerTextFormation() {
         particles.push(new Particle(centerX, centerY, hue, true, target.x, target.y));
     }
     
-    // Reset state after animation finishes
+    // Reset state after animation finishes (Increased time to match slower fade)
     setTimeout(() => {
         isFinaleActive = false;
         finaleBtn.disabled = false;
         finaleBtn.innerText = "Grand Finale";
-    }, 8000); // Wait longer for text to fall
+    }, 12000); 
 }
 
 // --- Event Listeners ---
